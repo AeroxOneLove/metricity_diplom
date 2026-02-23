@@ -15,6 +15,11 @@ ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', ['localhost', '127.0.0.1', '0.0.0.0'])
 
 
 INSTALLED_APPS = [
+    'corsheaders',
+    'rest_framework',
+    'django_filters',
+    'drf_spectacular',
+
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -25,6 +30,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -58,10 +64,20 @@ DATABASES = {
         'NAME': env.str('POSTGRES_DB', 'postgres'),
         'USER': env.str('POSTGRES_USER', 'postgres'),
         'PASSWORD': env.str('POSTGRES_PASSWORD', ''),
-        'HOST': env.str('POSTGRES_HOST', 'localhost'),
+        'HOST': env.str('POSTGRES_HOST', 'postgres'),
         'PORT': env.str('POSTGRES_PORT', '5432'),
     }
 }
+
+CORS_ALLOW_ALL_ORIGINS = env.bool('CORS_ALLOW_ALL_ORIGINS', False)
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Metricity API',
+    'VERSION': '0.1.0',
+}
+
+CELERY_BROKER_URL = env.str('CELERY_BROKER_URL', 'redis://redis:6379/0')
+CELERY_RESULT_BACKEND = env.str('CELERY_RESULT_BACKEND', 'redis://redis:6379/1')
 
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -79,7 +95,7 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'ru'
 
 TIME_ZONE = 'Europe/Moscow'
 

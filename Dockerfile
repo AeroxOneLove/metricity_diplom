@@ -1,4 +1,4 @@
-FROM python:3.12.1-slim-bullseye
+FROM python:3.13.1-slim
 
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
@@ -10,7 +10,6 @@ RUN apt-get update -y && \
     apt-get install -y --no-install-recommends \
         python3-dev \
         gcc \
-        musl-dev \
         libpq-dev \
         nmap && \
     rm -rf /var/lib/apt/lists/*
