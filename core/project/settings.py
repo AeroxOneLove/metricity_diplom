@@ -15,10 +15,14 @@ ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', ['localhost', '127.0.0.1', '0.0.0.0'])
 
 
 INSTALLED_APPS = [
+    'unfold',
     'corsheaders',
     'rest_framework',
     'django_filters',
     'drf_spectacular',
+    'core.apps.accounts',
+    'core.apps.complaints',
+    'core.apps.moderation',
 
     'django.contrib.admin',
     'django.contrib.auth',
@@ -44,7 +48,7 @@ ROOT_URLCONF = 'core.project.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -74,6 +78,13 @@ CORS_ALLOW_ALL_ORIGINS = env.bool('CORS_ALLOW_ALL_ORIGINS', False)
 SPECTACULAR_SETTINGS = {
     'TITLE': 'Metricity API',
     'VERSION': '0.1.0',
+}
+
+UNFOLD = {
+    'SITE_TITLE': 'Metricity Admin',
+    'SITE_HEADER': 'Metricity',
+    'SITE_URL': '/',
+    'SHOW_HISTORY': True,
 }
 
 CELERY_BROKER_URL = env.str('CELERY_BROKER_URL', 'redis://redis:6379/0')

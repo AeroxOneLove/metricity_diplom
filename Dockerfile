@@ -1,28 +1,32 @@
-FROM python:3.13.1-slim
-
-ENV PYTHONDONTWRITEBYTECODE 1
-ENV PYTHONUNBUFFERED 1
+FROM python:3.13.3-slim-bullseye AS builder
 
 WORKDIR /app
 
-
-RUN apt-get update -y && \
-    apt-get install -y --no-install-recommends \
-        python3-dev \
-        gcc \
-        libpq-dev \
-        nmap && \
-    rm -rf /var/lib/apt/lists/*
+ENV UV_PROJECT_ENVIRONMENT="/usr/local/"
+ENV UV_LINK_MODE=copy
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
-COPY pyproject.toml uv.lock /app/
+COPY pyproject.toml uv.lock ./
 
-RUN uv sync --locked --no-install-project
+RUN uv sync --frozen --no-cache
 
-COPY . /app/
+FROM python:3.13.3-slim-bullseye AS runtime
 
-RUN uv sync --locked
+WORKDIR /app
 
-ENV VIRTUAL_ENV=/app/.venv
-ENV PATH="/app/.venv/bin:$PATH"
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    UV_PROJECT_ENVIRONMENT="/usr/local/"
+
+COPY --from=builder /bin/uv /bin/uvx /bin/
+
+RUN apt update -y && \
+    apt install -y --no-install-recommends \
+    gdal-bin libgdal-dev \
+    binutils libproj-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /usr/local /usr/local
+
+COPY . .
