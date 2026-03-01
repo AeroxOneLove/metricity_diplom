@@ -43,5 +43,5 @@ logs_app:
 shell:
 	docker compose -f docker_compose/app.yaml -f docker_compose/storages.yaml --env-file .env exec main-app python manage.py shell
 
-collectstatic: ## Собрать статические файлы Django
+collectstatic: 
 	$(DC) $(APP_STACK) exec main-app python manage.py collectstatic --noinput
