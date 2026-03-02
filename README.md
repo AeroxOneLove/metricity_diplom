@@ -1,39 +1,39 @@
 # Metricity
 
-Backend: Django + DRF + PostgreSQL + Redis + Celery.
+Django + DRF + PostgreSQL + Redis + Celery.
 
 ## Требования
 - Docker / Docker Compose v2
-- uv (https://github.com/astral-sh/uv) или Python 3.13+ локально
+- uv (https://github.com/astral-sh/uv) или Python 3.13+
 
-## Быстрый старт
-```bash
-# 1. Скопировать переменные окружения
-cp .env.example .env
+## Настройка окружения
+1) Скопируйте переменные: `cp .env.example .env`.
+2) Обязательно задайте в `.env`:
+   - `SECRET_KEY`
+   - `ALLOWED_HOSTS` (через запятую)
+   - `CSRF_TRUSTED_ORIGINS` в формате `http://host[:port]` или `https://...` (добавьте `http://localhost:8000` или ваш домен, иначе будет 403 CSRF в админке)
+   - `POSTGRES_*`, `REDIS_PORT`, `DJANGO_PORT`, `DEBUG`
+3) Поднимите базы и Redis: `make storages`
+4) Запустите приложение и воркеры: `make up`
+5) Примените миграции: `make migrate`
+6) Создайте суперпользователя (по желанию): `make superuser`
 
-# 2. Поднять базы и Redis
-docker compose -f docker_compose/storages.yaml --env-file .env up -d
+После запуска:
+- Приложение: `http://localhost:8000/` (порт берется из `DJANGO_PORT`)
+- Админка: `http://localhost:8000/admin/` (403 CSRF -> проверьте, что точный origin с портом есть в `CSRF_TRUSTED_ORIGINS` и очистите cookies)
 
-# 3. Собрать и запустить backend + воркеры
-docker compose -f docker_compose/app.yaml -f docker_compose/storages.yaml --env-file .env up --build -d
+## Полезные команды (Makefile)
+- `make storages` — поднять postgres и redis
+- `make up` — запустить main-app, nginx, celery-worker, celery-beat
+- `make migrate` / `make makemigrations`
+- `make superuser`
+- `make logs` / `make logs_app`
+- `make check`
+- `make down` / `make down-v`
 
-# 4. Применить миграции
-docker compose -f docker_compose/app.yaml -f docker_compose/storages.yaml exec main-app python manage.py migrate
-
-# 5. (опционально) создать суперпользователя
-docker compose -f docker_compose/app.yaml -f docker_compose/storages.yaml exec main-app python manage.py createsuperuser
-
-# 6. Проверить проект
-docker compose -f docker_compose/app.yaml -f docker_compose/storages.yaml exec main-app python manage.py check
-```
-
-## Полезно знать
-- Приложение доступно на порту, указанном в `DJANGO_PORT` (по умолчанию 8000).
-- Swagger / OpenAPI: `/api/schema/` (drf-spectacular), UI `/api/schema/swagger-ui/` после добавления URL.
-- Celery использует Redis: `CELERY_BROKER_URL` / `CELERY_RESULT_BACKEND`.
-
-## Сервисы compose
-- `main-app` — Django runserver (dev).
-- `postgres` — база данных, volume `postgres_data` в `/var/lib/postgresql/data`.
-- `redis` — брокер/кеш, volume `redis_data`.
-- `celery-worker`, `celery-beat` — асинхронные задачи.
+## Сервисы Docker Compose
+- `main-app` — Django runserver (dev)
+- `nginx` — фронт для статики/медиа и прокси на app
+- `postgres` — БД, volume `postgres_data`
+- `redis` — брокер/кеш, volume `redis_data`
+- `celery-worker`, `celery-beat` — фоновые задачи
