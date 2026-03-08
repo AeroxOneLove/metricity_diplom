@@ -10,6 +10,7 @@ dependencies = [
     "django-cors-headers>=4.9.0",
     "django-filter>=25.2",
     "djangorestframework>=3.16.1",
+    "djangorestframework-simplejwt>=5.5.1",
     "drf-spectacular>=0.29.0",
     "django-unfold>=0.71.5",
     "environs>=14.6.0",

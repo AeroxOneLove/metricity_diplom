@@ -6,7 +6,34 @@ class UserLevel(models.TextChoices):
     NEWBIE = "NEWBIE", "Новичок"
     ACTIVE = "ACTIVE", "Активный"
     TRUSTED = "TRUSTED", "Доверенный"
-    MOD = "MOD", "Модератор"
+    MODERATOR = "MODERATOR", "Модератор"
+
+
+ACTIVE_RATING_THRESHOLD = 50
+TRUSTED_RATING_THRESHOLD = 200
+
+LEVEL_RANKS = {
+    UserLevel.NEWBIE: 0,
+    UserLevel.ACTIVE: 1,
+    UserLevel.TRUSTED: 2,
+    UserLevel.MODERATOR: 3,
+}
+
+
+def level_rank(level: str) -> int:
+    return LEVEL_RANKS.get(level, LEVEL_RANKS[UserLevel.NEWBIE])
+
+
+def level_from_rating(rating: int) -> str:
+    if rating >= TRUSTED_RATING_THRESHOLD:
+        return UserLevel.TRUSTED
+    if rating >= ACTIVE_RATING_THRESHOLD:
+        return UserLevel.ACTIVE
+    return UserLevel.NEWBIE
+
+
+def promoted_level_for_rating(current_level: str, rating: int) -> str:
+    return level_from_rating(rating)
 
 
 User = get_user_model()
@@ -21,6 +48,7 @@ class UserProfile(models.Model):
         default=UserLevel.NEWBIE,
         verbose_name="Уровень",
     )
+    is_level_manual = models.BooleanField(default=False, verbose_name="Уровень задан вручную")
 
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата создания")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Дата обновления")
@@ -30,5 +58,11 @@ class UserProfile(models.Model):
         verbose_name = "Профиль пользователя"
         verbose_name_plural = "Профили пользователей"
 
-    def __str__(self) -> str:  
+    def save(self, *args, **kwargs):
+        if not self.is_level_manual:
+            self.level = level_from_rating(self.rating)
+
+        return super().save(*args, **kwargs)
+
+    def __str__(self) -> str:
         return f"Профиль:<{self.user}, {self.get_level_display()}>"
