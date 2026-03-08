@@ -96,8 +96,25 @@ SIMPLE_JWT = {
 }
 
 SPECTACULAR_SETTINGS = {
-    'TITLE': 'Metricity API',
+    'TITLE': 'API сервиса Metricity',
+    'DESCRIPTION': (
+        'API платформы Metricity'
+    ),
     'VERSION': '0.1.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    'COMPONENT_SPLIT_REQUEST': True,
+    'SORT_OPERATIONS': False,
+    'SWAGGER_UI_SETTINGS': {
+        'persistAuthorization': True,
+        'displayRequestDuration': True,
+        'docExpansion': 'list',
+    },
+    'TAGS': [
+        {
+            'name': 'Аутентификация',
+            'description': 'Регистрация пользователя, работа с JWT и получение текущего профиля.',
+        },
+    ],
 }
 
 UNFOLD = {
