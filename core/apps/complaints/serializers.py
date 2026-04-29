@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from rest_framework import serializers
 
-from core.apps.complaints.models import Complaint, IncomingReport
+from core.apps.complaints.models import Complaint, ComplaintStatus, IncomingReport
 from core.apps.complaints.services import make_cell_id
 from core.apps.moderation.models import Decision
 
@@ -76,6 +76,15 @@ class ReportCreateResponseSerializer(serializers.Serializer):
 class ComplaintConfirmSerializer(serializers.Serializer):
     text = serializers.CharField(required=False, allow_blank=True)
     photo = serializers.ImageField(required=False, allow_null=True)
+
+
+class ComplaintStatusUpdateSerializer(serializers.Serializer):
+    status = serializers.ChoiceField(choices=ComplaintStatus.choices)
+
+
+class ComplaintStatusUpdateResponseSerializer(serializers.Serializer):
+    id = serializers.IntegerField(read_only=True)
+    status = serializers.CharField(read_only=True)
 
 
 class IncomingQueueSerializer(serializers.ModelSerializer):

@@ -3,6 +3,7 @@ from __future__ import annotations
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from rest_framework import generics, permissions, serializers, status
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -13,6 +14,8 @@ from core.apps.complaints.serializers import (
     ComplaintConfirmSerializer,
     ComplaintDetailSerializer,
     ComplaintMapSerializer,
+    ComplaintStatusUpdateResponseSerializer,
+    ComplaintStatusUpdateSerializer,
     IncomingQueueSerializer,
     IncomingReportCreateSerializer,
     ModerationDecisionRequestSerializer,
@@ -20,6 +23,8 @@ from core.apps.complaints.serializers import (
     ReportCreateResponseSerializer,
 )
 from core.apps.complaints.services import attach_to_master, confirm_complaint
+from core.apps.complaints.services.querying import filter_complaints
+from core.apps.complaints.services.statuses import change_complaint_status
 from core.apps.complaints.tasks import run_ai_check
 from core.apps.moderation.models import Decision, ModerationDecision
 
@@ -43,16 +48,55 @@ class ReportCreateView(generics.CreateAPIView):
         return Response(response_serializer.data, status=status.HTTP_201_CREATED)
 
 
+class ComplaintListPagination(PageNumberPagination):
+    page_size = 50
+    page_size_query_param = "page_size"
+    max_page_size = 100
+
+
 class ComplaintListView(generics.ListAPIView):
     permission_classes = [permissions.AllowAny]
     serializer_class = ComplaintMapSerializer
+    pagination_class = ComplaintListPagination
     queryset = Complaint.objects.all()
+
+    def get_queryset(self):
+        return filter_complaints(
+            super().get_queryset(),
+            self.request.query_params,
+        )
 
 
 class ComplaintDetailView(generics.RetrieveAPIView):
     permission_classes = [permissions.AllowAny]
     serializer_class = ComplaintDetailSerializer
     queryset = Complaint.objects.all()
+
+
+class ComplaintStatusUpdateView(APIView):
+    permission_classes = [IsModerator]
+
+    def post(self, request: Request, pk: int) -> Response:
+        complaint = get_object_or_404(Complaint, pk=pk)
+        serializer = ComplaintStatusUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            updated_complaint = change_complaint_status(
+                complaint=complaint,
+                new_status=serializer.validated_data["status"],
+                moderator=request.user,
+            )
+        except ValueError as exc:
+            raise serializers.ValidationError({"detail": str(exc)}) from exc
+
+        response_serializer = ComplaintStatusUpdateResponseSerializer(
+            {
+                "id": updated_complaint.id,
+                "status": updated_complaint.status,
+            }
+        )
+        return Response(response_serializer.data, status=status.HTTP_200_OK)
 
 
 class ConfirmView(APIView):
