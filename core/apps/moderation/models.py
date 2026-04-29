@@ -1,6 +1,7 @@
-from django.db import models
-from core.apps.complaints.models import IncomingReport
 from django.contrib.auth import get_user_model
+from django.db import models
+
+from core.apps.complaints.models import Category, IncomingReport
 
 User = get_user_model()
 
@@ -27,6 +28,14 @@ class ModerationDecision(models.Model):
         verbose_name="Решение",
     )
     note = models.TextField(blank=True, verbose_name="Примечание") 
+    reason = models.TextField(blank=True, verbose_name="Причина решения")
+    final_category = models.CharField(
+        max_length=32,
+        choices=Category.choices,
+        blank=True,
+        null=True,
+        verbose_name="Финальная категория",
+    )
     timestamps = models.DateTimeField(auto_now_add=True, verbose_name="Дата решения")
     
     class Meta:

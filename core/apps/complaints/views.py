@@ -149,21 +149,27 @@ class DecisionView(APIView):
         serializer.is_valid(raise_exception=True)
 
         decision = serializer.validated_data["decision"]
-        note = serializer.validated_data.get("note", "")
+        reason = serializer.validated_data.get("reason", serializer.validated_data.get("note", ""))
+        final_category = serializer.validated_data.get("category")
 
         complaint: Complaint | None = None
 
         with transaction.atomic():
+            if decision == Decision.APPROVE:
+                final_category = final_category or incoming.declared_category
+
             ModerationDecision.objects.create(
                 incoming=incoming,
                 moderator=request.user,
                 decision=decision,
-                note=note,
+                note=reason,
+                reason=reason,
+                final_category=final_category if decision == Decision.APPROVE else None,
             )
 
             if decision == Decision.APPROVE:
                 incoming.status = IncomingStatus.PROCESSED
-                complaint = attach_to_master(incoming)
+                complaint = attach_to_master(incoming, category=final_category)
             else:
                 incoming.status = IncomingStatus.REJECTED
 

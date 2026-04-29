@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from rest_framework import serializers
 
-from core.apps.complaints.models import Complaint, ComplaintStatus, IncomingReport
+from core.apps.complaints.models import Category, Complaint, ComplaintStatus, IncomingReport
 from core.apps.complaints.services import make_cell_id
 from core.apps.moderation.models import Decision
 
@@ -111,6 +111,8 @@ class IncomingQueueSerializer(serializers.ModelSerializer):
 
 class ModerationDecisionRequestSerializer(serializers.Serializer):
     decision = serializers.ChoiceField(choices=Decision.choices)
+    category = serializers.ChoiceField(choices=Category.choices, required=False)
+    reason = serializers.CharField(required=False, allow_blank=True)
     note = serializers.CharField(required=False, allow_blank=True)
 
 

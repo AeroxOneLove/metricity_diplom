@@ -21,9 +21,9 @@ def _to_float(value: Decimal | float | int | str) -> float:
     return float(value)
 
 
-def _create_new_master(incoming: IncomingReport, cell_id: str) -> Complaint:
+def _create_new_master(incoming: IncomingReport, cell_id: str, category: str) -> Complaint:
     return Complaint.objects.create(
-        category=incoming.declared_category,
+        category=category,
         lat=incoming.lat,
         lon=incoming.lon,
         cell_id=cell_id,
@@ -31,7 +31,7 @@ def _create_new_master(incoming: IncomingReport, cell_id: str) -> Complaint:
         priority_score=0,
         ai_verified=bool(
             incoming.ai_pred_category
-            and incoming.ai_pred_category == incoming.declared_category
+            and incoming.ai_pred_category == category
             and incoming.ai_confidence is not None
         ),
         ai_confidence=float(incoming.ai_confidence or 0),
@@ -62,7 +62,7 @@ def _attach_stack_report(
     return created
 
 
-def attach_to_master(incoming: IncomingReport) -> Complaint:
+def attach_to_master(incoming: IncomingReport, category: str | None = None) -> Complaint:
     """
     Привязывает входящий репорт к мастер-жалобе или создаёт новую.
 
@@ -70,6 +70,7 @@ def attach_to_master(incoming: IncomingReport) -> Complaint:
     потому что `StackReport` уникален по паре `(complaint, user)`.
     """
 
+    final_category = category or incoming.declared_category
     incoming_cell_id = make_cell_id(incoming.lat, incoming.lon)
     incoming.cell_id = incoming_cell_id
 
@@ -77,7 +78,7 @@ def attach_to_master(incoming: IncomingReport) -> Complaint:
         candidate_ids = neighbor_cells(incoming_cell_id)
         candidates = list(
             Complaint.objects.filter(
-                category=incoming.declared_category,
+                category=final_category,
                 status__in=ACTIVE_COMPLAINT_STATUSES,
                 cell_id__in=candidate_ids,
             )
@@ -93,7 +94,7 @@ def attach_to_master(incoming: IncomingReport) -> Complaint:
                 nearest_distance = distance
 
         if nearest is None or nearest_distance is None or nearest_distance > DUPLICATE_RADIUS_M:
-            master = _create_new_master(incoming=incoming, cell_id=incoming_cell_id)
+            master = _create_new_master(incoming=incoming, cell_id=incoming_cell_id, category=final_category)
         else:
             master = Complaint.objects.select_for_update().get(pk=nearest.pk)
 
