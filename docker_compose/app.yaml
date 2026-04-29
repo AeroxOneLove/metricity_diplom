@@ -12,23 +12,10 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    ports:
+      - "${DJANGO_PORT:-8000}:8000"
     volumes:
       - ..:/app/
-      - static_data:/app/staticfiles
-      - media_data:/app/media
-
-  nginx:
-    image: nginx:alpine
-    container_name: main-nginx
-    depends_on:
-      main-app:
-        condition: service_started
-    ports:
-      - "${DJANGO_PORT}:80"
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - static_data:/app/staticfiles:ro
-      - media_data:/app/media:ro
 
   celery-worker:
     build:
@@ -45,23 +32,3 @@ services:
         condition: service_healthy
     volumes:
       - ..:/app/
-
-  celery-beat:
-    build:
-      context: ..
-      dockerfile: Dockerfile
-    container_name: celery-beat
-    command: celery -A core.project beat --loglevel=info
-    env_file:
-      - ../.env
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    volumes:
-      - ..:/app/
-
-volumes:
-  static_data:
-  media_data:

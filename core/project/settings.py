@@ -7,7 +7,7 @@ from environs import Env
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 env = Env()
-env.read_env(BASE_DIR / ".env")
+env.read_env(BASE_DIR / ".env", override=True)
 
 SECRET_KEY = env.str('SECRET_KEY', default='my_secret_key')
 
@@ -73,7 +73,7 @@ DATABASES = {
         'USER': env.str('POSTGRES_USER', 'postgres'),
         'PASSWORD': env.str('POSTGRES_PASSWORD', ''),
         'HOST': env.str('POSTGRES_HOST', 'postgres'),
-        'PORT': env.str('POSTGRES_PORT', '5432'),
+        'PORT': env.str('POSTGRES_DB_PORT', '5432'),
     }
 }
 
@@ -126,6 +126,8 @@ UNFOLD = {
 
 CELERY_BROKER_URL = env.str('CELERY_BROKER_URL', 'redis://redis:6379/0')
 CELERY_RESULT_BACKEND = env.str('CELERY_RESULT_BACKEND', 'redis://redis:6379/1')
+ML_URL = env.str('ML_URL', 'http://ml:8000')
+AI_MATCH_THRESHOLD = env.float('AI_MATCH_THRESHOLD', 0.8)
 
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -152,10 +154,10 @@ USE_I18N = True
 USE_TZ = True
 
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
-MEDIA_URL = 'media/'
+MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

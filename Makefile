@@ -5,7 +5,7 @@ ENV = --env-file .env
 APP_STACK = -f $(APP_FILE) -f $(STORAGES_FILE) $(ENV)
 STORAGES_STACK = -f $(STORAGES_FILE) $(ENV)
 
-.PHONY: storages up makemigrations migrate superuser check down down-v logs logs_app collectstatic
+.PHONY: storages up makemigrations migrate showmigrations superuser check down down-v logs logs_app shell collectstatic
 
 storages:
 	$(DC) $(STORAGES_STACK) up -d
@@ -15,9 +15,6 @@ up:
 
 migrate:
 	$(DC) $(APP_STACK) exec main-app python manage.py migrate
-
-showmigrations:
-	$(DC) $(APP_STACK) exec main-app python manage.py showmigrations
 
 makemigrations:
 	$(DC) $(APP_STACK) exec main-app python manage.py makemigrations
@@ -41,7 +38,4 @@ logs_app:
 	$(DC) $(APP_STACK) logs -f main-app
 
 shell:
-	docker compose -f docker_compose/app.yaml -f docker_compose/storages.yaml --env-file .env exec main-app python manage.py shell
-
-collectstatic: 
-	$(DC) $(APP_STACK) exec main-app python manage.py collectstatic --noinput
+	$(DC) $(APP_STACK) exec main-app python manage.py shell
