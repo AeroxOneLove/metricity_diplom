@@ -8,11 +8,21 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from core.apps.accounts.models import UserRatingReason
 from core.apps.accounts.permissions import CanSetPriority, IsModerator
-from core.apps.complaints.models import Complaint, IncomingReport, IncomingStatus
+from core.apps.accounts.services import change_user_rating
+from core.apps.complaints.models import (
+    Complaint,
+    ComplaintImportanceVote,
+    IMPORTANCE_WEIGHTS,
+    IncomingReport,
+    IncomingStatus,
+)
 from core.apps.complaints.serializers import (
     ComplaintConfirmSerializer,
     ComplaintDetailSerializer,
+    ComplaintImportanceRequestSerializer,
+    ComplaintImportanceResponseSerializer,
     ComplaintMapSerializer,
     ComplaintStatusUpdateResponseSerializer,
     ComplaintStatusUpdateSerializer,
@@ -23,6 +33,7 @@ from core.apps.complaints.serializers import (
     ReportCreateResponseSerializer,
 )
 from core.apps.complaints.services import attach_to_master, confirm_complaint
+from core.apps.complaints.services.priority import recalculate_priority_score
 from core.apps.complaints.services.querying import filter_complaints
 from core.apps.complaints.services.statuses import change_complaint_status
 from core.apps.complaints.tasks import run_ai_check
@@ -117,8 +128,48 @@ class ConfirmView(APIView):
         except ValueError as exc:
             raise serializers.ValidationError({"detail": str(exc)}) from exc
 
+        if created:
+            change_user_rating(
+                request.user,
+                1,
+                UserRatingReason.CONFIRMED_COMPLAINT,
+                complaint=updated_complaint,
+            )
+
         response_status = status.HTTP_201_CREATED if created else status.HTTP_200_OK
         return Response(ComplaintDetailSerializer(updated_complaint).data, status=response_status)
+
+
+class ComplaintImportanceView(APIView):
+    permission_classes = [CanSetPriority]
+
+    def post(self, request: Request, pk: int) -> Response:
+        complaint = get_object_or_404(Complaint, pk=pk)
+        serializer = ComplaintImportanceRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        importance = serializer.validated_data["importance"]
+        weight = IMPORTANCE_WEIGHTS[importance]
+
+        with transaction.atomic():
+            ComplaintImportanceVote.objects.update_or_create(
+                complaint=complaint,
+                user=request.user,
+                defaults={
+                    "importance": importance,
+                    "weight": weight,
+                },
+            )
+            updated_complaint = recalculate_priority_score(complaint)
+
+        response_serializer = ComplaintImportanceResponseSerializer(
+            {
+                "complaint_id": updated_complaint.id,
+                "importance": importance,
+                "priority_score": updated_complaint.priority_score,
+            }
+        )
+        return Response(response_serializer.data, status=status.HTTP_200_OK)
 
 
 class IncomingQueueView(generics.ListAPIView):
@@ -170,8 +221,20 @@ class DecisionView(APIView):
             if decision == Decision.APPROVE:
                 incoming.status = IncomingStatus.PROCESSED
                 complaint = attach_to_master(incoming, category=final_category)
+                change_user_rating(
+                    incoming.user,
+                    5,
+                    UserRatingReason.MODERATOR_APPROVED_REPORT,
+                    incoming_report=incoming,
+                )
             else:
                 incoming.status = IncomingStatus.REJECTED
+                change_user_rating(
+                    incoming.user,
+                    -3,
+                    UserRatingReason.MODERATOR_REJECTED_REPORT,
+                    incoming_report=incoming,
+                )
 
             incoming.save(update_fields=["cell_id", "status", "updated_at"])
 

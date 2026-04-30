@@ -9,8 +9,8 @@ class UserLevel(models.TextChoices):
     MODERATOR = "MODERATOR", "Модератор"
 
 
-ACTIVE_RATING_THRESHOLD = 50
-TRUSTED_RATING_THRESHOLD = 200
+ACTIVE_RATING_THRESHOLD = 10
+TRUSTED_RATING_THRESHOLD = 50
 
 LEVEL_RANKS = {
     UserLevel.NEWBIE: 0,
@@ -66,3 +66,42 @@ class UserProfile(models.Model):
 
     def __str__(self) -> str:
         return f"Профиль:<{self.user}, {self.get_level_display()}>"
+
+
+class UserRatingReason(models.TextChoices):
+    AI_APPROVED_REPORT = "AI_APPROVED_REPORT", "Отчёт одобрен ИИ"
+    MODERATOR_APPROVED_REPORT = "MODERATOR_APPROVED_REPORT", "Отчёт одобрен модератором"
+    MODERATOR_REJECTED_REPORT = "MODERATOR_REJECTED_REPORT", "Отчёт отклонён модератором"
+    CONFIRMED_COMPLAINT = "CONFIRMED_COMPLAINT", "Подтверждение жалобы"
+    OTHER = "OTHER", "Другое"
+
+
+class UserRatingEvent(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="rating_events", verbose_name="Пользователь")
+    delta = models.IntegerField(verbose_name="Изменение рейтинга")
+    reason = models.CharField(max_length=64, choices=UserRatingReason.choices, verbose_name="Причина")
+    complaint = models.ForeignKey(
+        "complaints.Complaint",
+        on_delete=models.CASCADE,
+        related_name="rating_events",
+        blank=True,
+        null=True,
+        verbose_name="Жалоба",
+    )
+    incoming_report = models.ForeignKey(
+        "complaints.IncomingReport",
+        on_delete=models.CASCADE,
+        related_name="rating_events",
+        blank=True,
+        null=True,
+        verbose_name="Входящий отчёт",
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата создания")
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Событие рейтинга пользователя"
+        verbose_name_plural = "События рейтинга пользователей"
+
+    def __str__(self) -> str:
+        return f"Рейтинг<{self.user_id}, {self.delta}, {self.reason}>"

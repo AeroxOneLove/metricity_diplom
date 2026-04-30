@@ -2,6 +2,7 @@ from django.urls import path
 
 from core.apps.complaints.views import (
     ComplaintDetailView,
+    ComplaintImportanceView,
     ComplaintListView,
     ComplaintStatusUpdateView,
     ConfirmView,
@@ -19,6 +20,7 @@ urlpatterns = [
     path("complaints/", ComplaintListView.as_view(), name="complaint-list"),
     path("complaints/<int:pk>/", ComplaintDetailView.as_view(), name="complaint-detail"),
     path("complaints/<int:pk>/status/", ComplaintStatusUpdateView.as_view(), name="complaint-status"),
+    path("complaints/<int:pk>/set-importance/", ComplaintImportanceView.as_view(), name="complaint-set-importance"),
     path("complaints/<int:pk>/confirm/", ConfirmView.as_view(), name="complaint-confirm"),
     path("moderation/incoming/", IncomingQueueView.as_view(), name="incoming-queue"),
     path("moderation/incoming/<int:pk>/decision/", DecisionView.as_view(), name="incoming-decision"),

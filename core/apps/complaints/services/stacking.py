@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from decimal import Decimal
-
 from django.core.files.uploadedfile import UploadedFile
 from django.db import transaction
 from django.db.models.fields.files import FieldFile
@@ -9,16 +7,13 @@ from django.db.models.fields.files import FieldFile
 from core.apps.complaints.models import Complaint, ComplaintStatus, IncomingReport, StackReport
 
 from .geo import DUPLICATE_RADIUS_M, haversine_m, make_cell_id, neighbor_cells
+from .priority import recalculate_priority_score
 
 
 ACTIVE_COMPLAINT_STATUSES: tuple[str, str] = (
     ComplaintStatus.PUBLISHED,
     ComplaintStatus.IN_PROGRESS,
 )
-
-
-def _to_float(value: Decimal | float | int | str) -> float:
-    return float(value)
 
 
 def _create_new_master(incoming: IncomingReport, cell_id: str, category: str) -> Complaint:
@@ -55,20 +50,12 @@ def _attach_stack_report(
     )
 
     if created:
-        complaint.stack_count += 1
-        complaint.priority_score = _to_float(complaint.stack_count)
-        complaint.save(update_fields=["stack_count", "priority_score", "updated_at"])
+        recalculate_priority_score(complaint)
 
     return created
 
 
 def attach_to_master(incoming: IncomingReport, category: str | None = None) -> Complaint:
-    """
-    Привязывает входящий репорт к мастер-жалобе или создаёт новую.
-
-    Повторное прикрепление того же пользователя не увеличивает стек,
-    потому что `StackReport` уникален по паре `(complaint, user)`.
-    """
 
     final_category = category or incoming.declared_category
     incoming_cell_id = make_cell_id(incoming.lat, incoming.lon)

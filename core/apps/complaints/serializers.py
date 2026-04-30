@@ -2,7 +2,13 @@ from __future__ import annotations
 
 from rest_framework import serializers
 
-from core.apps.complaints.models import Category, Complaint, ComplaintStatus, IncomingReport
+from core.apps.complaints.models import (
+    Category,
+    Complaint,
+    ComplaintImportance,
+    ComplaintStatus,
+    IncomingReport,
+)
 from core.apps.complaints.services import make_cell_id
 from core.apps.moderation.models import Decision
 
@@ -85,6 +91,16 @@ class ComplaintStatusUpdateSerializer(serializers.Serializer):
 class ComplaintStatusUpdateResponseSerializer(serializers.Serializer):
     id = serializers.IntegerField(read_only=True)
     status = serializers.CharField(read_only=True)
+
+
+class ComplaintImportanceRequestSerializer(serializers.Serializer):
+    importance = serializers.ChoiceField(choices=ComplaintImportance.choices)
+
+
+class ComplaintImportanceResponseSerializer(serializers.Serializer):
+    complaint_id = serializers.IntegerField(read_only=True)
+    importance = serializers.CharField(read_only=True)
+    priority_score = serializers.FloatField(read_only=True)
 
 
 class IncomingQueueSerializer(serializers.ModelSerializer):

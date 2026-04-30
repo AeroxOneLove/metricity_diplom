@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Complaint, IncomingReport, StackReport
+from .models import Complaint, ComplaintImportanceVote, IncomingReport, StackReport
 
 
 @admin.register(Complaint)
@@ -45,6 +45,15 @@ class IncomingReportAdmin(admin.ModelAdmin):
 class StackReportAdmin(admin.ModelAdmin):
     list_display = ("id", "complaint", "user", "created_at")
     list_filter = ("complaint",)
+    search_fields = ("complaint__id", "user__username", "user__email")
+    readonly_fields = ("created_at", "updated_at")
+    date_hierarchy = "created_at"
+
+
+@admin.register(ComplaintImportanceVote)
+class ComplaintImportanceVoteAdmin(admin.ModelAdmin):
+    list_display = ("id", "complaint", "user", "importance", "weight", "created_at")
+    list_filter = ("importance",)
     search_fields = ("complaint__id", "user__username", "user__email")
     readonly_fields = ("created_at", "updated_at")
     date_hierarchy = "created_at"

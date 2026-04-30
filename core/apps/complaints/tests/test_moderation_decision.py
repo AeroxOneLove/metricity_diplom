@@ -5,7 +5,7 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from core.apps.accounts.models import UserLevel
-from core.apps.complaints.models import Category, Complaint, ComplaintStatus, IncomingReport, IncomingStatus
+from core.apps.complaints.models import Category, Complaint, ComplaintStatus, IncomingReport, IncomingStatus, StackReport
 from core.apps.moderation.models import Decision, ModerationDecision
 
 
@@ -62,6 +62,8 @@ class ModerationDecisionTests(TestCase):
             stack_count=1,
             priority_score=1,
         )
+        original_user = User.objects.create_user(username="original", password="pass")
+        StackReport.objects.create(complaint=existing_complaint, user=original_user)
         incoming = self._create_incoming(declared_category=Category.TRASH)
         self.client.force_authenticate(user=self.moderator)
 

@@ -25,6 +25,19 @@ class IncomingStatus(models.TextChoices):
     REJECTED = "REJECTED", "Отклонено"
 
 
+class ComplaintImportance(models.TextChoices):
+    LOW = "LOW", "Низкая"
+    NORMAL = "NORMAL", "Обычная"
+    HIGH = "HIGH", "Высокая"
+
+
+IMPORTANCE_WEIGHTS = {
+    ComplaintImportance.LOW: 0,
+    ComplaintImportance.NORMAL: 1,
+    ComplaintImportance.HIGH: 3,
+}
+
+
 class Complaint(models.Model):
     category = models.CharField(max_length=32, choices=Category.choices, verbose_name="Категория")
     status = models.CharField(
@@ -57,6 +70,41 @@ class Complaint(models.Model):
 
     def __str__(self) -> str: 
         return f"Статус<{self.id}, {self.category}, {self.get_status_display()}>"
+
+
+class ComplaintImportanceVote(models.Model):
+    complaint = models.ForeignKey(
+        Complaint,
+        on_delete=models.CASCADE,
+        related_name="importance_votes",
+        verbose_name="Жалоба",
+    )
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="complaint_importance_votes",
+        verbose_name="Пользователь",
+    )
+    importance = models.CharField(
+        max_length=16,
+        choices=ComplaintImportance.choices,
+        verbose_name="Важность",
+    )
+    weight = models.PositiveSmallIntegerField(verbose_name="Вес")
+
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата создания")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Дата обновления")
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["complaint", "user"], name="unique_complaint_user_importance"),
+        ]
+        ordering = ["-created_at"]
+        verbose_name = "Голос важности жалобы"
+        verbose_name_plural = "Голоса важности жалоб"
+
+    def __str__(self) -> str:
+        return f"Важность<{self.complaint_id}, пользователь={self.user_id}, {self.importance}>"
 
 
 class IncomingReport(models.Model):
