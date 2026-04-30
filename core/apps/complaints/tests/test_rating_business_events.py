@@ -176,7 +176,7 @@ class RatingBusinessEventTests(TestCase):
         )
 
         self.assertEqual(first_response.status_code, 201)
-        self.assertEqual(second_response.status_code, 200)
+        self.assertEqual(second_response.status_code, 400)
         self.active_user.profile.refresh_from_db()
         self.assertEqual(self.active_user.profile.rating, 1)
         self.assertEqual(

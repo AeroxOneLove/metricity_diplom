@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from django.db import transaction
 from django.shortcuts import get_object_or_404
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import OpenApiExample, OpenApiParameter, OpenApiResponse, extend_schema, extend_schema_view
 from rest_framework import generics, permissions, serializers, status
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.request import Request
@@ -12,7 +14,9 @@ from core.apps.accounts.models import UserRatingReason
 from core.apps.accounts.permissions import CanSetPriority, IsModerator
 from core.apps.accounts.services import change_user_rating
 from core.apps.complaints.models import (
+    Category,
     Complaint,
+    ComplaintStatus,
     ComplaintImportanceVote,
     IMPORTANCE_WEIGHTS,
     IncomingReport,
@@ -65,6 +69,30 @@ class ComplaintListPagination(PageNumberPagination):
     max_page_size = 100
 
 
+@extend_schema_view(
+    get=extend_schema(
+        tags=["Жалобы"],
+        summary="Список жалоб для карты",
+        description="Возвращает публичный список жалоб с фильтрами, сортировкой и локальной пагинацией.",
+        parameters=[
+            OpenApiParameter("minLat", OpenApiTypes.FLOAT, OpenApiParameter.QUERY, description="Минимальная широта bbox."),
+            OpenApiParameter("maxLat", OpenApiTypes.FLOAT, OpenApiParameter.QUERY, description="Максимальная широта bbox."),
+            OpenApiParameter("minLon", OpenApiTypes.FLOAT, OpenApiParameter.QUERY, description="Минимальная долгота bbox."),
+            OpenApiParameter("maxLon", OpenApiTypes.FLOAT, OpenApiParameter.QUERY, description="Максимальная долгота bbox."),
+            OpenApiParameter("category", OpenApiTypes.STR, OpenApiParameter.QUERY, enum=[value for value, _ in Category.choices]),
+            OpenApiParameter("status", OpenApiTypes.STR, OpenApiParameter.QUERY, enum=[value for value, _ in ComplaintStatus.choices]),
+            OpenApiParameter(
+                "ordering",
+                OpenApiTypes.STR,
+                OpenApiParameter.QUERY,
+                enum=["priority_score", "-priority_score", "created_at", "-created_at", "stack_count", "-stack_count"],
+            ),
+            OpenApiParameter("page", OpenApiTypes.INT, OpenApiParameter.QUERY, description="Номер страницы."),
+            OpenApiParameter("page_size", OpenApiTypes.INT, OpenApiParameter.QUERY, description="Размер страницы, максимум 100."),
+        ],
+        responses={200: ComplaintMapSerializer(many=True), 400: OpenApiResponse(description="Ошибка параметров фильтрации.")},
+    ),
+)
 class ComplaintListView(generics.ListAPIView):
     permission_classes = [permissions.AllowAny]
     serializer_class = ComplaintMapSerializer
@@ -78,6 +106,13 @@ class ComplaintListView(generics.ListAPIView):
         )
 
 
+@extend_schema_view(
+    get=extend_schema(
+        tags=["Жалобы"],
+        summary="Детали жалобы",
+        responses={200: ComplaintDetailSerializer, 404: OpenApiResponse(description="Жалоба не найдена.")},
+    ),
+)
 class ComplaintDetailView(generics.RetrieveAPIView):
     permission_classes = [permissions.AllowAny]
     serializer_class = ComplaintDetailSerializer
@@ -87,6 +122,24 @@ class ComplaintDetailView(generics.RetrieveAPIView):
 class ComplaintStatusUpdateView(APIView):
     permission_classes = [IsModerator]
 
+    @extend_schema(
+        tags=["Жалобы"],
+        summary="Сменить статус жалобы",
+        request=ComplaintStatusUpdateSerializer,
+        responses={
+            200: ComplaintStatusUpdateResponseSerializer,
+            400: OpenApiResponse(description="Невалидный статус или запрещённый переход."),
+            403: OpenApiResponse(description="Требуется уровень MODERATOR."),
+            404: OpenApiResponse(description="Жалоба не найдена."),
+        },
+        examples=[
+            OpenApiExample(
+                "Взять в работу",
+                value={"status": "IN_PROGRESS"},
+                request_only=True,
+            ),
+        ],
+    )
     def post(self, request: Request, pk: int) -> Response:
         complaint = get_object_or_404(Complaint, pk=pk)
         serializer = ComplaintStatusUpdateSerializer(data=request.data)
@@ -113,6 +166,24 @@ class ComplaintStatusUpdateView(APIView):
 class ConfirmView(APIView):
     permission_classes = [CanSetPriority]
 
+    @extend_schema(
+        tags=["Жалобы"],
+        summary="Подтвердить существующую жалобу",
+        request=ComplaintConfirmSerializer,
+        responses={
+            201: ComplaintDetailSerializer,
+            400: OpenApiResponse(description="Жалоба уже подтверждена этим пользователем или неактивна."),
+            403: OpenApiResponse(description="Требуется уровень ACTIVE или выше."),
+            404: OpenApiResponse(description="Жалоба не найдена."),
+        },
+        examples=[
+            OpenApiExample(
+                "Подтверждение с текстом",
+                value={"text": "Проблема всё ещё актуальна."},
+                request_only=True,
+            ),
+        ],
+    )
     def post(self, request: Request, pk: int) -> Response:
         complaint = get_object_or_404(Complaint, pk=pk)
         serializer = ComplaintConfirmSerializer(data=request.data)
@@ -128,6 +199,9 @@ class ConfirmView(APIView):
         except ValueError as exc:
             raise serializers.ValidationError({"detail": str(exc)}) from exc
 
+        if not created:
+            raise serializers.ValidationError({"detail": "Вы уже подтверждали эту жалобу."})
+
         if created:
             change_user_rating(
                 request.user,
@@ -136,13 +210,30 @@ class ConfirmView(APIView):
                 complaint=updated_complaint,
             )
 
-        response_status = status.HTTP_201_CREATED if created else status.HTTP_200_OK
-        return Response(ComplaintDetailSerializer(updated_complaint).data, status=response_status)
+        return Response(ComplaintDetailSerializer(updated_complaint).data, status=status.HTTP_201_CREATED)
 
 
 class ComplaintImportanceView(APIView):
     permission_classes = [CanSetPriority]
 
+    @extend_schema(
+        tags=["Жалобы"],
+        summary="Установить ручную важность жалобы",
+        request=ComplaintImportanceRequestSerializer,
+        responses={
+            200: ComplaintImportanceResponseSerializer,
+            400: OpenApiResponse(description="Невалидная важность."),
+            403: OpenApiResponse(description="Требуется уровень ACTIVE или выше."),
+            404: OpenApiResponse(description="Жалоба не найдена."),
+        },
+        examples=[
+            OpenApiExample(
+                "Высокая важность",
+                value={"importance": "HIGH"},
+                request_only=True,
+            ),
+        ],
+    )
     def post(self, request: Request, pk: int) -> Response:
         complaint = get_object_or_404(Complaint, pk=pk)
         serializer = ComplaintImportanceRequestSerializer(data=request.data)
@@ -172,6 +263,13 @@ class ComplaintImportanceView(APIView):
         return Response(response_serializer.data, status=status.HTTP_200_OK)
 
 
+@extend_schema_view(
+    get=extend_schema(
+        tags=["Модерация"],
+        summary="Очередь входящих обращений на модерацию",
+        responses={200: IncomingQueueSerializer(many=True), 403: OpenApiResponse(description="Требуется уровень MODERATOR.")},
+    ),
+)
 class IncomingQueueView(generics.ListAPIView):
     permission_classes = [IsModerator]
     serializer_class = IncomingQueueSerializer
@@ -187,6 +285,33 @@ class IncomingQueueView(generics.ListAPIView):
 class DecisionView(APIView):
     permission_classes = [IsModerator]
 
+    @extend_schema(
+        tags=["Модерация"],
+        summary="Принять решение по входящему обращению",
+        description=(
+            "`decision` обязателен. Для `APPROVE` можно передать `category` как финальную категорию. "
+            "Для `REJECT` можно передать `reason`."
+        ),
+        request=ModerationDecisionRequestSerializer,
+        responses={
+            200: ModerationDecisionResponseSerializer,
+            400: OpenApiResponse(description="Невалидное решение или обращение уже обработано."),
+            403: OpenApiResponse(description="Требуется уровень MODERATOR."),
+            404: OpenApiResponse(description="Входящее обращение не найдено."),
+        },
+        examples=[
+            OpenApiExample(
+                "Approve with category",
+                value={"decision": "APPROVE", "category": "ROAD"},
+                request_only=True,
+            ),
+            OpenApiExample(
+                "Reject with reason",
+                value={"decision": "REJECT", "reason": "На фото не обнаружена проблема"},
+                request_only=True,
+            ),
+        ],
+    )
     def post(self, request: Request, pk: int) -> Response:
         incoming = get_object_or_404(IncomingReport.objects.select_related("user"), pk=pk)
 
