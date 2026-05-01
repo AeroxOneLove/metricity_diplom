@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from urllib.parse import urljoin
+
+from django.conf import settings
 from rest_framework import serializers
 
 from core.apps.complaints.models import (
@@ -11,6 +14,23 @@ from core.apps.complaints.models import (
 )
 from core.apps.complaints.services import make_cell_id
 from core.apps.moderation.models import Decision
+
+
+def _public_media_url(file_name: str) -> str:
+    base_url = settings.PUBLIC_MEDIA_URL.rstrip("/") + "/"
+    return urljoin(base_url, file_name)
+
+
+def _complaint_photo_url(complaint: Complaint) -> str:
+    prefetched_stack_reports = getattr(complaint, "photo_stack_reports", None)
+    if prefetched_stack_reports is not None:
+        stack_report = next((report for report in prefetched_stack_reports if report.photo), None)
+    else:
+        stack_report = complaint.stack_reports.exclude(photo__isnull=True).exclude(photo="").order_by("created_at").first()
+
+    if stack_report is None or not stack_report.photo:
+        return ""
+    return _public_media_url(stack_report.photo.name)
 
 
 class IncomingReportCreateSerializer(serializers.ModelSerializer):
@@ -48,13 +68,23 @@ class IncomingReportCreateSerializer(serializers.ModelSerializer):
 
 
 class ComplaintMapSerializer(serializers.ModelSerializer):
+    photo_url = serializers.SerializerMethodField()
+
+    def get_photo_url(self, obj: Complaint) -> str:
+        return _complaint_photo_url(obj)
+
     class Meta:
         model = Complaint
-        fields = ("id", "lat", "lon", "category", "status", "priority_score")
+        fields = ("id", "lat", "lon", "category", "status", "priority_score", "photo_url")
         read_only_fields = fields
 
 
 class ComplaintDetailSerializer(serializers.ModelSerializer):
+    photo_url = serializers.SerializerMethodField()
+
+    def get_photo_url(self, obj: Complaint) -> str:
+        return _complaint_photo_url(obj)
+
     class Meta:
         model = Complaint
         fields = (
@@ -66,6 +96,7 @@ class ComplaintDetailSerializer(serializers.ModelSerializer):
             "cell_id",
             "stack_count",
             "priority_score",
+            "photo_url",
             "ai_verified",
             "ai_confidence",
             "created_at",

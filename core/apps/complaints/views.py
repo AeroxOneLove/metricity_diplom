@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from django.db import transaction
+from django.db.models import Prefetch
 from django.shortcuts import get_object_or_404
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiExample, OpenApiParameter, OpenApiResponse, extend_schema, extend_schema_view
@@ -21,6 +22,7 @@ from core.apps.complaints.models import (
     IMPORTANCE_WEIGHTS,
     IncomingReport,
     IncomingStatus,
+    StackReport,
 )
 from core.apps.complaints.serializers import (
     ComplaintConfirmSerializer,
@@ -47,7 +49,7 @@ from core.apps.moderation.models import Decision, ModerationDecision
 class ReportCreateView(generics.CreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = IncomingReportCreateSerializer
-    parser_classes = [parsers.MultiPartParser, parsers.FormParser]
+    parser_classes = [parsers.MultiPartParser, parsers.FormParser, parsers.JSONParser]
 
     def create(self, request: Request, *args, **kwargs) -> Response:
         serializer = self.get_serializer(data=request.data)
@@ -68,6 +70,13 @@ class ComplaintListPagination(PageNumberPagination):
     page_size = 50
     page_size_query_param = "page_size"
     max_page_size = 100
+
+
+complaint_photo_prefetch = Prefetch(
+    "stack_reports",
+    queryset=StackReport.objects.exclude(photo__isnull=True).exclude(photo="").order_by("created_at"),
+    to_attr="photo_stack_reports",
+)
 
 
 @extend_schema_view(
@@ -98,7 +107,7 @@ class ComplaintListView(generics.ListAPIView):
     permission_classes = [permissions.AllowAny]
     serializer_class = ComplaintMapSerializer
     pagination_class = ComplaintListPagination
-    queryset = Complaint.objects.all()
+    queryset = Complaint.objects.prefetch_related(complaint_photo_prefetch)
 
     def get_queryset(self):
         return filter_complaints(
@@ -117,7 +126,7 @@ class ComplaintListView(generics.ListAPIView):
 class ComplaintDetailView(generics.RetrieveAPIView):
     permission_classes = [permissions.AllowAny]
     serializer_class = ComplaintDetailSerializer
-    queryset = Complaint.objects.all()
+    queryset = Complaint.objects.prefetch_related(complaint_photo_prefetch)
 
 
 class ComplaintStatusUpdateView(APIView):
@@ -166,7 +175,7 @@ class ComplaintStatusUpdateView(APIView):
 
 class ConfirmView(APIView):
     permission_classes = [CanSetPriority]
-    parser_classes = [parsers.MultiPartParser, parsers.FormParser]
+    parser_classes = [parsers.MultiPartParser, parsers.FormParser, parsers.JSONParser]
 
     @extend_schema(
         tags=["Жалобы"],

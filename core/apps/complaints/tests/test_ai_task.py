@@ -1,18 +1,36 @@
 from __future__ import annotations
 
 import json
+import shutil
+import tempfile
 from unittest.mock import patch
 from urllib import error
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import TestCase, override_settings
 
 from core.apps.accounts.models import UserRatingEvent, UserRatingReason
 from core.apps.complaints.models import Category, Complaint, IncomingReport, IncomingStatus
-from core.apps.complaints.tasks import run_ai_check
+from core.apps.complaints.tasks import _call_ml_service, run_ai_check
 
 
 User = get_user_model()
+TEST_MEDIA_ROOT = tempfile.mkdtemp()
+
+
+class FakeMlResponse:
+    def __init__(self, body: bytes):
+        self.body = body
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        return None
+
+    def read(self) -> bytes:
+        return self.body
 
 
 class RunAiCheckTests(TestCase):
@@ -121,3 +139,48 @@ class RunAiCheckTests(TestCase):
         self.assertEqual(incoming.ai_confidence, 0.91)
         self.assertEqual(Complaint.objects.count(), 0)
         ml_mock.assert_not_called()
+
+
+@override_settings(MEDIA_ROOT=TEST_MEDIA_ROOT)
+class MlRequestTests(TestCase):
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(TEST_MEDIA_ROOT, ignore_errors=True)
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="ml-user", password="pass")
+
+    def test_call_ml_service_sends_photo_as_multipart_file(self):
+        incoming = IncomingReport.objects.create(
+            user=self.user,
+            declared_category=Category.TRASH,
+            text="Проблема во дворе",
+            photo=SimpleUploadedFile("photo.jpg", b"fake image content", content_type="image/jpeg"),
+            lat="55.751244",
+            lon="37.618423",
+            cell_id="55.751:37.618",
+        )
+
+        with patch(
+            "core.apps.complaints.tasks.request.urlopen",
+            return_value=FakeMlResponse(b'{"confidence": 0.95, "is_match": true, "pred_category": "TRASH"}'),
+        ) as urlopen_mock:
+            response = _call_ml_service(
+                {"category": incoming.declared_category, "text": incoming.text},
+                photo=incoming.photo,
+            )
+
+        http_request = urlopen_mock.call_args.args[0]
+        headers = dict(http_request.header_items())
+        content_type = headers.get("Content-type") or headers.get("Content-Type")
+
+        self.assertEqual(response["pred_category"], Category.TRASH)
+        self.assertIn("multipart/form-data", content_type)
+        self.assertIn(b'name="category"', http_request.data)
+        self.assertIn(b"TRASH", http_request.data)
+        self.assertIn(b'name="text"', http_request.data)
+        self.assertIn("Проблема во дворе".encode("utf-8"), http_request.data)
+        self.assertIn(b'name="photo"; filename="photo.jpg"', http_request.data)
+        self.assertIn(b"fake image content", http_request.data)
+        self.assertNotIn(b"photo_url", http_request.data)

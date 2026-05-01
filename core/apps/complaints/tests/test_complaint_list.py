@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+from django.contrib.auth import get_user_model
 from django.test import TestCase
 from rest_framework.test import APIClient
 
-from core.apps.complaints.models import Category, Complaint, ComplaintStatus
+from core.apps.complaints.models import Category, Complaint, ComplaintStatus, StackReport
+
+
+User = get_user_model()
 
 
 class ComplaintListTests(TestCase):
@@ -11,6 +15,7 @@ class ComplaintListTests(TestCase):
 
     @classmethod
     def setUpTestData(cls):
+        cls.user = User.objects.create_user(username="user", password="pass")
         cls.trash = Complaint.objects.create(
             category=Category.TRASH,
             status=ComplaintStatus.PUBLISHED,
@@ -19,6 +24,11 @@ class ComplaintListTests(TestCase):
             cell_id="55.751:37.618",
             stack_count=3,
             priority_score=3,
+        )
+        StackReport.objects.create(
+            complaint=cls.trash,
+            user=cls.user,
+            photo="stack/photos/trash.jpg",
         )
         cls.road = Complaint.objects.create(
             category=Category.ROAD,
@@ -52,7 +62,16 @@ class ComplaintListTests(TestCase):
         self.assertEqual(response.data["count"], 3)
         self.assertEqual(
             set(response.data["results"][0].keys()),
-            {"id", "lat", "lon", "category", "status", "priority_score"},
+            {"id", "lat", "lon", "category", "status", "priority_score", "photo_url"},
+        )
+
+    def test_list_includes_public_photo_url(self):
+        response = self.client.get(self.url, {"category": Category.TRASH})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.data["results"][0]["photo_url"],
+            "http://localhost:8080/media/stack/photos/trash.jpg",
         )
 
     def test_bbox_filter(self):

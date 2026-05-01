@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import logging
+import mimetypes
+import uuid
 from typing import Any
 from urllib import error, request
 
@@ -17,25 +19,56 @@ from core.apps.complaints.services import attach_to_master
 logger = logging.getLogger(__name__)
 
 
-def _photo_url(incoming: IncomingReport) -> str:
-    if not incoming.photo:
-        return ""
-    try:
-        return incoming.photo.url
-    except ValueError:
-        return ""
-
-
 def _predict_url() -> str:
     return f"{settings.ML_URL.rstrip('/')}/predict"
 
 
-def _call_ml_service(payload: dict[str, Any]) -> dict[str, Any]:
-    raw_payload = json.dumps(payload).encode("utf-8")
+def _encode_multipart_form_data(payload: dict[str, Any], photo=None) -> tuple[bytes, str]:
+    boundary = uuid.uuid4().hex
+    chunks: list[bytes] = []
+
+    for field_name, raw_value in payload.items():
+        value = "" if raw_value is None else str(raw_value)
+        chunks.extend(
+            [
+                f"--{boundary}\r\n".encode("utf-8"),
+                f'Content-Disposition: form-data; name="{field_name}"\r\n\r\n'.encode("utf-8"),
+                value.encode("utf-8"),
+                b"\r\n",
+            ]
+        )
+
+    if photo:
+        filename = photo.name.rsplit("/", 1)[-1]
+        content_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+        photo.open("rb")
+        try:
+            photo_content = photo.read()
+        finally:
+            photo.close()
+
+        chunks.extend(
+            [
+                f"--{boundary}\r\n".encode("utf-8"),
+                (
+                    f'Content-Disposition: form-data; name="photo"; filename="{filename}"\r\n'
+                    f"Content-Type: {content_type}\r\n\r\n"
+                ).encode("utf-8"),
+                photo_content,
+                b"\r\n",
+            ]
+        )
+
+    chunks.append(f"--{boundary}--\r\n".encode("utf-8"))
+    return b"".join(chunks), f"multipart/form-data; boundary={boundary}"
+
+
+def _call_ml_service(payload: dict[str, Any], photo=None) -> dict[str, Any]:
+    raw_payload, content_type = _encode_multipart_form_data(payload, photo=photo)
     http_request = request.Request(
         _predict_url(),
         data=raw_payload,
-        headers={"Content-Type": "application/json"},
+        headers={"Content-Type": content_type},
         method="POST",
     )
 
@@ -82,11 +115,12 @@ def run_ai_check(incoming_id: int) -> None:
         ml_response = _call_ml_service(
             {
                 "category": incoming.declared_category,
-                "photo_url": _photo_url(incoming),
                 "text": incoming.text,
-            }
+            },
+            photo=incoming.photo,
         )
     except (
+        OSError,
         TimeoutError,
         ValueError,
         error.HTTPError,
