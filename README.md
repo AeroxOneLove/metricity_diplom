@@ -67,6 +67,8 @@ make migrate
 make superuser
 ```
 
+Загруженные фото хранятся в Docker volume `media_data`. Django пишет файлы в `/app/media`, Celery читает их оттуда для ML-проверки, а `media-nginx` отдаёт эти же файлы публично по `PUBLIC_MEDIA_URL`.
+
 Создать демо-данные:
 
 ```bash
