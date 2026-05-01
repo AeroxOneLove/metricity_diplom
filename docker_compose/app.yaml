@@ -32,3 +32,17 @@ services:
         condition: service_healthy
     volumes:
       - ..:/app/
+
+  celery-beat:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: celery-beat
+    command: celery -A core.project beat --loglevel=info --schedule=/tmp/celerybeat-schedule
+    env_file:
+      - ../.env
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - ..:/app/

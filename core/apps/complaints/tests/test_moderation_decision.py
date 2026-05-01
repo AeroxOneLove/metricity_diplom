@@ -109,7 +109,6 @@ class ModerationDecisionTests(TestCase):
         self.assertEqual(response.status_code, 200)
         decision = ModerationDecision.objects.get(incoming=incoming)
         self.assertEqual(decision.reason, "На фото не обнаружена проблема")
-        self.assertEqual(decision.note, "На фото не обнаружена проблема")
 
     def test_approve_saves_final_category(self):
         incoming = self._create_incoming(declared_category=Category.TRASH)

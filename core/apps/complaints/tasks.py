@@ -159,3 +159,15 @@ def run_ai_check(incoming_id: int) -> None:
                 "updated_at",
             ]
         )
+
+
+@shared_task(name="complaints.enqueue_pending_ai_checks")
+def enqueue_pending_ai_checks(limit: int = 100) -> None:
+    pending_ids = (
+        IncomingReport.objects.filter(status=IncomingStatus.PENDING_AI)
+        .order_by("created_at")
+        .values_list("id", flat=True)[:limit]
+    )
+
+    for incoming_id in pending_ids:
+        run_ai_check.delay(incoming_id)

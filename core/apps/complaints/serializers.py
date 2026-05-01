@@ -129,7 +129,6 @@ class ModerationDecisionRequestSerializer(serializers.Serializer):
     decision = serializers.ChoiceField(choices=Decision.choices)
     category = serializers.ChoiceField(choices=Category.choices, required=False)
     reason = serializers.CharField(required=False, allow_blank=True)
-    note = serializers.CharField(required=False, allow_blank=True)
 
 
 class ModerationDecisionResponseSerializer(serializers.Serializer):

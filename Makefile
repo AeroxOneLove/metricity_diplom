@@ -5,7 +5,7 @@ ENV = --env-file .env
 APP_STACK = -f $(APP_FILE) -f $(STORAGES_FILE) $(ENV)
 STORAGES_STACK = -f $(STORAGES_FILE) $(ENV)
 
-.PHONY: storages up makemigrations migrate showmigrations superuser check down down-v logs logs_app shell collectstatic
+.PHONY: storages up makemigrations migrate showmigrations superuser check test tests down down-v logs logs_app logs_beat shell collectstatic
 
 storages:
 	$(DC) $(STORAGES_STACK) up -d
@@ -25,6 +25,11 @@ superuser:
 check:
 	$(DC) $(APP_STACK) exec main-app python manage.py check
 
+test:
+	$(DC) $(APP_STACK) exec main-app python manage.py test
+
+tests: test
+
 down:
 	$(DC) $(APP_STACK) down
 
@@ -36,6 +41,9 @@ logs:
 
 logs_app:
 	$(DC) $(APP_STACK) logs -f main-app
+
+logs_beat:
+	$(DC) $(APP_STACK) logs -f celery-beat
 
 shell:
 	$(DC) $(APP_STACK) exec main-app python manage.py shell

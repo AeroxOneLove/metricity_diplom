@@ -1,6 +1,7 @@
 from pathlib import Path
 from datetime import timedelta
 
+from celery.schedules import crontab
 from environs import Env
 
 
@@ -126,6 +127,12 @@ UNFOLD = {
 
 CELERY_BROKER_URL = env.str('CELERY_BROKER_URL', 'redis://redis:6379/0')
 CELERY_RESULT_BACKEND = env.str('CELERY_RESULT_BACKEND', 'redis://redis:6379/1')
+CELERY_BEAT_SCHEDULE = {
+    'enqueue_pending_ai_checks_every_5_minutes': {
+        'task': 'complaints.enqueue_pending_ai_checks',
+        'schedule': crontab(minute='*/5'),
+    },
+}
 ML_URL = env.str('ML_URL', 'http://ml:8000')
 AI_MATCH_THRESHOLD = env.float('AI_MATCH_THRESHOLD', 0.8)
 

@@ -27,7 +27,6 @@ class ModerationDecision(models.Model):
         choices=Decision.choices,
         verbose_name="Решение",
     )
-    note = models.TextField(blank=True, verbose_name="Примечание") 
     reason = models.TextField(blank=True, verbose_name="Причина решения")
     final_category = models.CharField(
         max_length=32,

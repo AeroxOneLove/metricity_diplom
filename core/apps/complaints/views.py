@@ -4,7 +4,7 @@ from django.db import transaction
 from django.shortcuts import get_object_or_404
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiExample, OpenApiParameter, OpenApiResponse, extend_schema, extend_schema_view
-from rest_framework import generics, permissions, serializers, status
+from rest_framework import generics, parsers, permissions, serializers, status
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -47,6 +47,7 @@ from core.apps.moderation.models import Decision, ModerationDecision
 class ReportCreateView(generics.CreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = IncomingReportCreateSerializer
+    parser_classes = [parsers.MultiPartParser, parsers.FormParser]
 
     def create(self, request: Request, *args, **kwargs) -> Response:
         serializer = self.get_serializer(data=request.data)
@@ -165,6 +166,7 @@ class ComplaintStatusUpdateView(APIView):
 
 class ConfirmView(APIView):
     permission_classes = [CanSetPriority]
+    parser_classes = [parsers.MultiPartParser, parsers.FormParser]
 
     @extend_schema(
         tags=["Жалобы"],
@@ -325,7 +327,7 @@ class DecisionView(APIView):
         serializer.is_valid(raise_exception=True)
 
         decision = serializer.validated_data["decision"]
-        reason = serializer.validated_data.get("reason", serializer.validated_data.get("note", ""))
+        reason = serializer.validated_data.get("reason", "")
         final_category = serializer.validated_data.get("category")
 
         complaint: Complaint | None = None
@@ -338,7 +340,6 @@ class DecisionView(APIView):
                 incoming=incoming,
                 moderator=request.user,
                 decision=decision,
-                note=reason,
                 reason=reason,
                 final_category=final_category if decision == Decision.APPROVE else None,
             )
