@@ -5,10 +5,9 @@ ENV = --env-file .env
 APP_STACK = -f $(APP_FILE) -f $(STORAGES_FILE) $(ENV)
 STORAGES_STACK = -f $(STORAGES_FILE) $(ENV)
 
-.PHONY: storages up makemigrations migrate showmigrations superuser check test tests down down-v logs logs_app logs_beat shell collectstatic
+.PHONY: init up makemigrations migrate showmigrations superuser check test tests seed_demo down down-v logs logs_app logs_beat shell collectstatic
 
-storages:
-	$(DC) $(STORAGES_STACK) up -d
+init: up makemigrations migrate
 
 up:
 	$(DC) $(APP_STACK) up --build -d
@@ -29,6 +28,12 @@ test:
 	$(DC) $(APP_STACK) exec main-app python manage.py test
 
 tests: test
+
+seed_demo:
+	$(DC) $(APP_STACK) exec main-app python manage.py seed_demo
+
+showmigrations:
+	$(DC) $(APP_STACK) exec main-app python manage.py showmigrations
 
 down:
 	$(DC) $(APP_STACK) down
